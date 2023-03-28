@@ -1,89 +1,75 @@
 import { fetchPhotos } from './api';
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from './Modal/Modal';
 import { Button } from './Button/Button';
 import { ImageGallery } from './ImageGallery/ImageGallery';
 import { Loader } from './Loader/Loader';
 import { Searchbar } from './Searchbar/Searchbar';
-import css from "./App.module.css";
+import css from './App.module.css';
 import { animateScroll } from 'react-scroll';
 
-export class App extends Component {
-  state = {
-    images: [],
-    page: 1,
-    per_page: 12,
-    query: '',
-    isLoading: false,
-    onLoadMore: false,
-    showModal: false,
-    largeImageURL: 'largeImageURL',
-    error: null,
-    
+export function App() {
+  const [images, setImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [onLoadMore, setOnLoadMore] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [largeImageURL, setLargeImageURL] = useState('');
+
+  useEffect(() => {
+    if (!query) return;
+    const fetchGallery = async () => {
+      setIsLoading(true);
+      try {
+        const { hits, totalHits } = await fetchPhotos(query, page);
+        setImages(prevImages => [...prevImages, ...hits]);
+        setOnLoadMore(page < Math.ceil(totalHits / 12));
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchGallery();
+  }, [query, page]);
+
+  const onFormSubmit = query => {
+    setQuery(query);
+    setImages([]);
+    setPage(1);
+    setOnLoadMore(false);
   };
 
-  componentDidUpdate(_, prevState) {
-    const { query, page } = this.state;
-    if (prevState.query !== query || prevState.page !== page) {
-      this.fetchGallery(query, page);
-    }
-  }
-
-  async fetchGallery(query, page) {
-    this.setState({ isLoading: true });
-    if (!query) {
-      return;
-    }
-    try {
-      const { hits, totalHits } = await fetchPhotos(query, page);
-      this.setState(prevState => ({
-        images: [...prevState.images, ...hits],
-        onLoadMore:
-          this.state.page < Math.ceil(totalHits / this.state.per_page),
-      }));
-    } catch (error) {
-      this.setState({ error: error.message });
-    } finally {
-      this.setState({ isLoading: false });
-    }
-  }
-
-  onFormSubmit = (query) => {
-    this.setState({ query, images: [], page: 1, onLoadMore: false, });
+  const openModal = largeImageURL => {
+    setShowModal(true);
+    setLargeImageURL(largeImageURL);
   };
 
-  openModal = (largeImageURL) => {
-    this.setState({ showModal: true, largeImageURL: largeImageURL });
+  const loadMore = () => {
+    setPage(prevPage => prevPage + 1);
+    animateScroll.scrollToBottom({
+      duration: 500,
+      delay: 14,
+    });
   };
 
-  onLoadMore = () => {
-    this.setState(prevState => ({ page: prevState.page + 1 }))
-      animateScroll.scrollToBottom({
-    duration: 500,
-    delay: 14,
-  });;
+  const closeModal = () => {
+    setShowModal(false);
   };
 
-  closeModal = () => {
-    this.setState({ showModal: false });
-  };
-
-  render() {
-    const { isLoading, images, onLoadMore, page, showModal, largeImageURL } =
-      this.state;
-    return (
-      <div className={css.App}>
-        <Searchbar onSubmit={this.onFormSubmit} />
-        {isLoading ? (
-          <Loader />
-        ) : (
-          <ImageGallery images={images} openModal={this.openModal} />
-        )}
-        {onLoadMore && <Button onLoadMore={this.onLoadMore} page={page} />}
-        {showModal && 
-          <Modal largeImageURL={largeImageURL} closeModal={this.closeModal} />
-        }
-      </div>
-    );
-  }
+  return (
+    <div className={css.App}>
+      <Searchbar onSubmit={onFormSubmit} />
+      {isLoading ? (
+        <Loader />
+      ) : (
+        <ImageGallery images={images} openModal={openModal} />
+      )}
+      {onLoadMore && <Button onLoadMore={loadMore} page={page} />}
+      {showModal && (
+        <Modal largeImageURL={largeImageURL} closeModal={closeModal} />
+      )}
+    </div>
+  );
 }
